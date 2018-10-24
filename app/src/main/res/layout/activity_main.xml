@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    tools:context="com.example.konstantin.nfcreader.MainActivity">
+
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent">
+
+    <TextView
+        android:id="@+id/text"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_centerHorizontal="true"
+        android:text="Hold a tag against the back of your device"
+        android:textStyle="bold"
+        android:textSize="20sp"
+        android:layout_marginLeft="20dp"
+        android:layout_marginRight="20dp"
+        android:layout_alignParentTop="true"
+        android:gravity="center_horizontal" />
+    <LinearLayout
+    android:id="@+id/linearLayout"
+    android:layout_below="@id/text"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:weightSum="3">
+    <Button
+        android:text="@string/on_off"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentTop="false"
+        android:layout_alignParentEnd="true"
+        android:layout_weight="1"
+        android:id="@+id/btnONOFF"/>
+
+    <Button
+        android:text="@string/enable_disc"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/btnDiscoverable_on_off"
+        android:onClick="btnEnableDisable_Discoverable"
+        android:layout_alignParentTop="false"
+        android:layout_below="@id/text"
+        android:layout_weight="1"
+        android:layout_centerHorizontal="true"/>
+
+    <Button
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:id="@+id/btnFindUnpairedDevices"
+        android:text="@string/discover"
+        android:layout_below="@id/text"
+        android:layout_weight="1"
+        android:onClick="btnDiscover"/>
+
+</LinearLayout>
+
+    <ListView
+        android:layout_below="@+id/linearLayout"
+        android:layout_width="match_parent"
+        android:layout_height="200dp"
+        android:id="@+id/lvNewDevices"/>
+
+    <TextView
+        android:id="@+id/textView11"
+        android:layout_width="match_parent"
+        android:layout_height="150dp"
+        android:layout_below="@id/lvNewDevices"
+        android:layout_centerHorizontal="true"
+        android:scrollbars="vertical"
+        android:text="Received message"
+        android:textColor="@android:color/background_dark"
+        android:textSize="18sp" />
+
+    <EditText
+        android:id="@+id/etIP"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_alignParentStart="true"
+        android:layout_below="@id/textView11"
+        android:layout_marginStart="0dp"
+        android:ems="10"
+        android:hint="IP"
+        android:inputType="textPersonName" />
+
+    <EditText
+        android:id="@+id/etText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/etIP"
+        android:layout_alignParentStart="true"
+
+        android:ems="10"
+        android:hint="Text"
+        android:inputType="textPersonName" />
+
+    <Button
+        android:id="@+id/buttonSend"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/etIP"
+        android:layout_toEndOf="@+id/etIP"
+        android:text="@string/send" />
+
+    <Button
+        android:id="@+id/buttonGet"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_below="@+id/textView11"
+        android:layout_alignBottom="@+id/etIP"
+        android:layout_toEndOf="@+id/etIP"
+        android:text="@string/get" />
+
+    </RelativeLayout>
+
+</ScrollView>
