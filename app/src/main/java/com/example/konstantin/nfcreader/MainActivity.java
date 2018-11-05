@@ -10,12 +10,15 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.SharedPreferences;
 import android.media.MediaPlayer;
+import android.nfc.FormatException;
 import android.nfc.NdefMessage;
 import android.nfc.NdefRecord;
 import android.nfc.NfcAdapter;
 import android.nfc.Tag;
 import android.nfc.tech.MifareClassic;
 import android.nfc.tech.MifareUltralight;
+import android.nfc.tech.Ndef;
+import android.nfc.tech.NdefFormatable;
 import android.nfc.tech.NfcA;
 import android.nfc.tech.NfcV;
 import android.os.AsyncTask;
@@ -42,6 +45,9 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStreamWriter;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.io.UnsupportedEncodingException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -294,7 +300,6 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         if (nfcAdapter != null) {
             if (!nfcAdapter.isEnabled())
                 showWirelessSettings();
-
             nfcAdapter.enableForegroundDispatch(this, pendingIntent, null, null);
         }
     }
@@ -311,8 +316,10 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         resolveIntent(intent);
     }
 
+    Intent intentt;
     private void resolveIntent(Intent intent) {
         String action = intent.getAction();
+        intentt = intent;
 
         if (NfcAdapter.ACTION_TAG_DISCOVERED.equals(action)
                 || NfcAdapter.ACTION_TECH_DISCOVERED.equals(action)
@@ -330,15 +337,85 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                 byte[] empty = new byte[0];
                 byte[] id = intent.getByteArrayExtra(NfcAdapter.EXTRA_ID);
                 Tag tag = intent.getParcelableExtra(NfcAdapter.EXTRA_TAG);
-                byte[] payload = dumpTagData(tag).getBytes();
-                NdefRecord record = new NdefRecord(NdefRecord.TNF_UNKNOWN, empty, id, payload);
-                NdefMessage msg = new NdefMessage(new NdefRecord[] {record});
-                msgs = new NdefMessage[] {msg};
-                new NfcVReaderTask().execute(tag);
+                String[] techList = tag.getTechList();
+                String searchedTech = NfcV.class.getName();
+                for (String tech : techList) {
+                    if (searchedTech.equals(tech)) {
+                        new NfcVReaderTask().execute(tag);
+                        break;
+                    }
+                }
+
+               // new NfcVReaderTask().execute(tag);
             }
 
-            displayMsgs(msgs);
+            //displayMsgs(msgs);
         }
+    }
+
+    private class NdefReaderTask extends AsyncTask<Tag,Void,String> {
+
+        @Override
+        protected String doInBackground(Tag... params) {
+            Tag tag = params[0];
+            NdefFormatable ndefFormatable = NdefFormatable.get(tag);
+            if (ndefFormatable == null) {
+                return null;
+            }
+            NdefMessage[] msgs;
+            byte[] empty = new byte[0];
+            byte[] id = intentt.getByteArrayExtra(NfcAdapter.EXTRA_ID);
+            byte[] payload = dumpTagData(tag).getBytes();
+            NdefRecord record = new NdefRecord(NdefRecord.TNF_UNKNOWN, empty, id, payload);
+            NdefMessage msg = new NdefMessage(new NdefRecord[] {record});
+            msgs = new NdefMessage[] {msg};
+            try {
+                ndefFormatable.connect();
+                ndefFormatable.format(msg);
+            } catch (FormatException e) {
+                StringWriter errors = new StringWriter();
+                e.printStackTrace(new PrintWriter(errors));
+                changeText(errors.toString());
+            } catch (IOException e) {
+                StringWriter errors = new StringWriter();
+                e.printStackTrace(new PrintWriter(errors));
+                changeText(errors.toString());
+            }
+
+            NdefRecord[] records = msg.getRecords();
+            for (NdefRecord ndefRecord:records) {
+                if (ndefRecord.getTnf() == NdefRecord.TNF_WELL_KNOWN
+                        && Arrays.equals(ndefRecord.getType(),NdefRecord.RTD_TEXT)) {
+                    try {
+                        return readText(ndefRecord);
+                    } catch (UnsupportedEncodingException e) {
+                        StringWriter errors = new StringWriter();
+                        e.printStackTrace(new PrintWriter(errors));
+                        changeText(errors.toString());
+                    }
+                }
+
+            }
+            return null;
+        }
+
+        private String readText (NdefRecord record) throws UnsupportedEncodingException {
+            byte[] payload = record.getPayload();
+            String textEncoding = ((payload[0] & 128) == 0) ? "UTF-8" : "UTF-16";
+            int languageCodeLength = payload[0] & 0063;
+            return new String (payload
+                    ,languageCodeLength + 1
+                    ,payload.length - languageCodeLength - 1
+                    ,textEncoding);
+        }
+
+        @Override
+        protected void onPostExecute(String result) {
+            if (result != null) {
+                changeText("Content: " + result);
+            }
+        }
+
     }
 
     private void displayMsgs(NdefMessage[] msgs) {
@@ -630,6 +707,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
         return new String(hexChars);
     }
 
+
     private class NfcVReaderTask extends AsyncTask<Tag, Void, String> {
 
         String lectura = "";
@@ -662,13 +740,25 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
             byte[] allBlocks = new byte[40*8];
 
 
+
+
             Log.d("socialdiabetes", "---------------------------------------------------------------");
             try {
                 // Get system information (0x2B)
+                byte[] tagUid = tag.getId();
                 byte[] cmd = new byte[] {
-                        (byte)0x00, // Flags
-                        (byte)0x2B // Command: Get system information
+                        (byte)0x20,
+                        (byte)0x2B,
+                        (byte)0x00,
+                        (byte)0x00,
+                        (byte)0x00,
+                        (byte)0x00,
+                        (byte)0x00,
+                        (byte)0x00,
+                        (byte)0x00,
+                        (byte)0x00// Command: Get system information
                 };
+                System.arraycopy(tagUid,0,cmd,2,8);
                 byte[] systeminfo = nfcvTag.transceive(cmd);
                 Log.d("socialdiabetes", "SYSTEMINFO");
 
@@ -682,23 +772,52 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
                 int totalBlocks = Integer.parseInt(bytesToHex(blocks).trim(), 16);
 
-                for(int i=3; i <= 40; i++) { // Leer solo los bloques que nos interesan
+                int blockz = 2;
+              /*  for(int i=3; i <= 23; i++) { // Leer solo los bloques que nos interesan
                     cmd = new byte[] {
                             (byte)0x00, // Flags
-                            (byte)0x20, // Command: Read multiple blocks
-                            (byte)i // block (offset)
+                            (byte)0x23,
+                            (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00, (byte)0x00,// Command: Read multiple blocks
+                            (byte)(i & 0x0ff), // First block (offset)
+                            (byte)((blockz - 1) & 0x0ff)  // Number of blocks
                     };
 
+                    cmd = new byte[]{
+                            (byte) 0x00, // Flags
+                            (byte) 0x23,
+                            (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00,// Command: Read multiple blocks
+                            (byte) (i & 0x0ff), // First block (offset)
+                            (byte) ((blockz - 1) & 0x0ff)
+                    };
+                    System.arraycopy(tagUid,0,cmd,2,8);
                     byte[] oneBlock = nfcvTag.transceive(cmd);
+
                     Log.d("socialdiabetes", "userdata: "+ Arrays.toString(oneBlock) +" - "+oneBlock.length);
                     oneBlock = Arrays.copyOfRange(oneBlock, 1, oneBlock.length);
                     bloques[i-3] = Arrays.copyOf(oneBlock, 8);
 
-
                     Log.d("socialdiabetes", "userdata HEX: "+bytesToHex(oneBlock));
 
                     lectura += bytesToHex(oneBlock) + "\r\n";
-                }
+                } */
+
+                cmd = new byte[]{
+                        (byte) 0x00, // Flags
+                        (byte) 0x23, // Command: Read multiple blocks
+                        (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00, (byte) 0x00,
+                        (byte) (3 & 0x0ff), // First block (offset)
+                        (byte) ((40 - 1) & 0x0ff) //Number of blocks
+                };
+                System.arraycopy(tagUid,0,cmd,2,8);
+                byte[] oneBlock = nfcvTag.transceive(cmd);
+
+                Log.d("socialdiabetes", "userdata: "+ Arrays.toString(oneBlock) +" - "+oneBlock.length);
+                oneBlock = Arrays.copyOfRange(oneBlock, 1, oneBlock.length);
+                bloques[40-3] = Arrays.copyOf(oneBlock, 8);
+
+                Log.d("socialdiabetes", "userdata HEX: "+bytesToHex(oneBlock));
+
+                lectura += bytesToHex(oneBlock) + "\r\n";
 
                 String s = "";
                 for(int i=0;i<40;i++) {
@@ -731,7 +850,7 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
 
 
                 }
-                lectura = lectura + "Current approximate glucose "+currentGlucose;
+                lectura = lectura + "Current approximate glucose " + currentGlucose;
                 Log.d("socialdiabetes", "Current approximate glucose "+currentGlucose);
 
                 Log.d("socialdiabetes", "--------------------------------------------------");
@@ -750,6 +869,9 @@ public class MainActivity extends AppCompatActivity implements AdapterView.OnIte
                         Toast.makeText(getApplicationContext(), "Error reading NFC!", Toast.LENGTH_SHORT).show();
                     }
                 });
+                StringWriter errors = new StringWriter();
+                e.printStackTrace(new PrintWriter(errors));
+                changeText(errors.toString());
 
                 return null;
             }
